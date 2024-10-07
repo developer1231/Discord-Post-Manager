@@ -1,6 +1,14 @@
 const sqlite3 = require("sqlite3").verbose();
 const db = new sqlite3.Database("database.db");
 
+function isMoreThanFourMonthsAgo(timestamp) {
+  const dateFromDb = new Date(timestamp);
+  const currentDate = new Date();
+  const fourMonthsAgo = new Date();
+  fourMonthsAgo.setMonth(currentDate.getMonth() - 4);
+  return dateFromDb < fourMonthsAgo;
+}
+
 function makeid(length) {
   let result = "";
   const characters =
@@ -65,4 +73,4 @@ async function Initialization() {
   }
 }
 
-module.exports = { makeid, execute, run, Initialization, getCurrentDateTime };
+module.exports = { makeid, execute, run, Initialization, getCurrentDateTime, isMoreThanFourMonthsAgo };

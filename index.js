@@ -2,10 +2,7 @@ require('dotenv').config();
 const fs = require("node:fs");
 const path = require("node:path");
 const n = require("./config.json");
-const { saveTicket, autoSaveTicket } = require("./helpers/ticket.js");
-const { createEmbed, createEmbedFields, createSimpleEmbed, createSimpleEmbedFields } = require("./helpers/embed.js");
-const { execute, getCurrentDateTime } = require("./database/database");
-const { createEntry, updateEntry, getLink, addAttachment, hasPerms, addText, retrieve } = require("./helpers/airtable.js");
+const { execute, getCurrentDateTim, isMoreThanFourMonthsAgo } = require("./database/database");
 const {
   REST,
   Routes,
@@ -95,12 +92,65 @@ for (const file of eventFiles) {
 }
 
 client.on(Events.MessageCreate, async (message) => {
+  let config = JSON.parse(fs.readFileSync("./config.json", "utf8"))
+  let channel = message.guild.channels.cache.find(r => r.id === config.channel)
+  let role = message.guild.roles.cache.find(r => r.id === config.role)
   if (message.author.bot) {
     return;
   }
-  let data = await execute(`SELECT * FROM `)
+  if(message.channel.id !== channel.id) return;
+  if(message.member.permissions.cache.has(PermissionFlagsBits.Administrator)) return;
+  let data = await execute(`SELECT * FROM posts WHERE member_id = ?`, [message.member.id]);
+  const currentTimestamp = Date.now()
+  if(!message.member.roles.cache.some(r => r.id == role.id)){
+    let toMember = new EmbedBuilder()
+    .setTitle(":x: | Invalid Permissions")
+    .setAuthor({name: `${message.member.user.username}`, iconURL: `${message.member.user.displayAvatarURL()}`})
+    .setDescription(
+      `> Dear ${message.member}, \n\n> Recently you have tried posting in the ${message.channel} channel, however you don't have the required role, ${role}, to do so.\n\n> Please, head over to the admins and request permissions to receive this role.`
+    )
+    .setColor("Red")
+    .setTimestamp();
+    try {
+      await message.member.send({
+        embeds: [toMember],
+      });
+      } catch (error) {
+        console.log(`Couldn't DM the member as their discord DM's are disabled.`);
+      }
+      await message.delete()
+      return;
+  }
+  if(data.length > 0){
+    if(isMoreThanFourMonthsAgo(data[0].timestamp)){
+   
+    await execute(`UPDATE posts SET timestamp = ?, SET message_id = ? WHERE member_id = ?`, [currentTimestamp, message.id, message.member.id]);
+    } else{
+      let oldMessage = await channel.messages.fetch(data[0].message_id)
+      let toMember = new EmbedBuilder()
+      .setTitle(":x: | You're posting too soon!")
+      .setAuthor({name: `${message.member.user.username}`, iconURL: `${message.member.user.displayAvatarURL()}`})
+      .setDescription(
+        `> Dear ${message.member}, \n\n> Recently you have tried posting in the ${message.channel} channel, however you already have been administered posting less than **4 Months** ago. Please, go to the ${channel} channel, and view how much time you got left before you can post again.\n> To view the message you had previously posted, please [Click Here]('${oldMessage}')`
+      )
+      .setColor("Red")
+      .setTimestamp();
+      try {
+        await message.member.send({
+          embeds: [toMember],
+        });
+        return await message.delete()
+        } catch (error) {
+          console.log(`Couldn't DM the member as their discord DM's are disabled.`);
+        }
+    }
+  }else{
+  
+    await execute(`INSERT INTO posts (member_id, timestamp, message_id) VALUES (?, ?, ?)`, [message.member.id, currentTimestamp, message.id]);
+    
+  }
 
-   await execute(`INSERT INTO posts (member_id, timestamp, message_id) VALUES(?, ?, ?)`);
+   
   
   
   // `create table if not exists posts (
