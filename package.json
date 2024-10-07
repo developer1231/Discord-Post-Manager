@@ -1,7 +1,7 @@
 {
-  "name": "advanced-ticket-bot",
+  "name": "advanced-discord-post-bot",
   "version": "2.0.0",
-  "description": "Advanced ticket bot for Discord with Airtable integration",
+  "description": "Advanced moderation bot for music posts made by users.",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
