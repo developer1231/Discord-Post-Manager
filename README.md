@@ -34,6 +34,6 @@ Welcome to the **Music Showcase Bot**! This bot is designed to enhance your Disc
     "channel": "CHANNEL_ID", // The channel where the button and information embed will be sent
     "post_channel": "POST_CHANNEL_ID", // The channel for posting music showcases
     "role": "ROLE_ID" // The role ID of the verified role
-  }
+     }
    ```
 
