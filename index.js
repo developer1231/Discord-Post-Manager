@@ -123,7 +123,6 @@ client.on(Events.MessageCreate, async (message) => {
   }
   if(data.length > 0){
     if(isMoreThanFourMonthsAgo(data[0].timestamp)){
-   
     await execute(`UPDATE posts SET timestamp = ?, SET message_id = ? WHERE member_id = ?`, [currentTimestamp, message.id, message.member.id]);
     } else{
       let oldMessage = await channel.messages.fetch(data[0].message_id)
@@ -166,7 +165,50 @@ client.on(Events.InteractionCreate, async (interaction) => {
   if (interaction.isCommand()) {
     command.execute(interaction);
   }
- 
+ if(interaction.isButton()){
+  if(interaction.customId === "check_time"){
+    let post_channel = interaction.guild.channels.cache.find(r => r.id === n.post_channel)
+    await execute(`INSERT INTO posts (member_id, timestamp, message_id) VALUES (?, ?, ?)`, [message.member.id, currentTimestamp, message.id]);
+    let data = await execute(`SELECT * FROM posts WHERE member_id = ?`, [interaction.member.id])
+    if(data.length === 0){
+      let toMember = new EmbedBuilder()
+      .setTitle(":x: | Invalid Data")
+      .setAuthor({name: `${interaction.member.user.username}`, iconURL: `${interaction.member.user.displayAvatarURL()}`})
+      .setDescription(
+        `> Dear ${interaction.member},\n\n> It seems like you have not yet made a post. Please, head over to ${post_channel} and publish your first post to the world!`
+      )
+      .setColor("Red")
+      .setTimestamp();
+    await interaction.reply({ephemeral:true, embeds: [toMember]})
+    return;
+    }
+    if(isMoreThanFourMonthsAgo(data[0].timestamp)){
+      let toMember = new EmbedBuilder()
+      .setTitle(":white_check_mark: | Feel free to post!")
+      .setAuthor({name: `${interaction.member.user.username}`, iconURL: `${interaction.member.user.displayAvatarURL()}`})
+      .setDescription(
+        `> Dear ${interaction.member},\n\n> The last post you have created was more than **4 months ago**.Please, feel free to post again in the ${post_channel} channel! Good luck!`
+      )
+      .setColor("Red")
+      .setTimestamp();
+    await interaction.reply({ephemeral:true, embeds: [toMember]})
+    return
+    }else{
+      let time = Math.floor(data[0].timestamp / 1000);
+      let date = `<t:${time}:F>`
+      let toMember = new EmbedBuilder()
+      .setTitle(":x: | You cannot post yet!")
+      .setAuthor({name: `${interaction.member.user.username}`, iconURL: `${interaction.member.user.displayAvatarURL()}`})
+      .setDescription(
+        `> Dear ${interaction.member},\n\n> The last post you have created was less than **4 months ago**.You are able to post again at: ${date}.\n\n> All your posts before this date will automatically be removed.`
+      )
+      .setColor("Red")
+      .setTimestamp();
+    await interaction.reply({ephemeral:true, embeds: [toMember]})
+    return
+    }
+  }
+ }
   
 });
 
