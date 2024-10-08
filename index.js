@@ -92,22 +92,24 @@ for (const file of eventFiles) {
 }
 
 client.on(Events.MessageCreate, async (message) => {
-  let config = JSON.parse(fs.readFileSync("./config.json", "utf8"))
-  let channel = message.guild.channels.cache.find(r => r.id === config.channel)
-  let role = message.guild.roles.cache.find(r => r.id === config.role)
   if (message.author.bot) {
     return;
   }
+  let config = JSON.parse(fs.readFileSync("./config.json", "utf8"))
+  let channel = await message.guild.channels.cache.find(r => r.id == config.post_channel)
+  let role = message.guild.roles.cache.find(r => r.id === config.role)
+  
   if(message.channel.id !== channel.id) return;
-  if(message.member.permissions.cache.has(PermissionFlagsBits.Administrator)) return;
+  if(message.member.permissions.has(PermissionFlagsBits.Administrator)) return;
   let data = await execute(`SELECT * FROM posts WHERE member_id = ?`, [message.member.id]);
   const currentTimestamp = Date.now()
   if(!message.member.roles.cache.some(r => r.id == role.id)){
     let toMember = new EmbedBuilder()
     .setTitle(":x: | Invalid Permissions")
-    .setAuthor({name: `${message.member.user.username}`, iconURL: `${message.member.user.displayAvatarURL()}`})
+    .setThumbnail(message.guild.iconURL())
+    .setAuthor({name: `${message.member.user.username}`, iconURL: `${message.member.displayAvatarURL()}`})
     .setDescription(
-      `> Dear ${message.member}, \n\n> Recently you have tried posting in the ${message.channel} channel, however you don't have the required role, ${role}, to do so.\n\n> Please, head over to the admins and request permissions to receive this role.`
+      `> Dear ${message.member}, \n\n> Recently you have tried posting in the ${message.channel} channel, however you don't have the required role to do so.\n\n> Please, head over to the admins and request permissions to receive this role.`
     )
     .setColor("Red")
     .setTimestamp();
@@ -122,15 +124,19 @@ client.on(Events.MessageCreate, async (message) => {
       return;
   }
   if(data.length > 0){
+   
     if(isMoreThanFourMonthsAgo(data[0].timestamp)){
-    await execute(`UPDATE posts SET timestamp = ?, SET message_id = ? WHERE member_id = ?`, [currentTimestamp, message.id, message.member.id]);
+    await execute(`UPDATE posts SET timestamp = ?, message_id = ? WHERE member_id = ?`, [currentTimestamp, message.id, message.member.id]);
     } else{
+      console.log("data")
       let oldMessage = await channel.messages.fetch(data[0].message_id)
+      console.log(oldMessage)
       let toMember = new EmbedBuilder()
       .setTitle(":x: | You're posting too soon!")
-      .setAuthor({name: `${message.member.user.username}`, iconURL: `${message.member.user.displayAvatarURL()}`})
+      .setThumbnail(message.guild.iconURL())
+      .setAuthor({name: `${message.member.user.username}`, iconURL: `${message.member.displayAvatarURL()}`})
       .setDescription(
-        `> Dear ${message.member}, \n\n> Recently you have tried posting in the ${message.channel} channel, however you already have been administered posting less than **4 Months** ago. Please, go to the ${channel} channel, and view how much time you got left before you can post again.\n> To view the message you had previously posted, please [Click Here]('${oldMessage}')`
+        `> Dear ${message.member}, \n\n> Recently you have tried posting in the ${message.channel} channel, however you already have been administered posting less than **4 Months** ago. Please, go to the ${channel} channel, and view how much time you got left before you can post again.\n> To view the message you had previously posted, please [Click Here](${oldMessage.url})`
       )
       .setColor("Red")
       .setTimestamp();
@@ -168,12 +174,13 @@ client.on(Events.InteractionCreate, async (interaction) => {
  if(interaction.isButton()){
   if(interaction.customId === "check_time"){
     let post_channel = interaction.guild.channels.cache.find(r => r.id === n.post_channel)
-    await execute(`INSERT INTO posts (member_id, timestamp, message_id) VALUES (?, ?, ?)`, [message.member.id, currentTimestamp, message.id]);
     let data = await execute(`SELECT * FROM posts WHERE member_id = ?`, [interaction.member.id])
     if(data.length === 0){
       let toMember = new EmbedBuilder()
       .setTitle(":x: | Invalid Data")
-      .setAuthor({name: `${interaction.member.user.username}`, iconURL: `${interaction.member.user.displayAvatarURL()}`})
+      .setThumbnail(interaction.guild.iconURL())
+      
+      .setAuthor({name: `${interaction.member.user.username}`, iconURL: `${interaction.member.displayAvatarURL()}`})
       .setDescription(
         `> Dear ${interaction.member},\n\n> It seems like you have not yet made a post. Please, head over to ${post_channel} and publish your first post to the world!`
       )
@@ -182,25 +189,37 @@ client.on(Events.InteractionCreate, async (interaction) => {
     await interaction.reply({ephemeral:true, embeds: [toMember]})
     return;
     }
+    console.log(isMoreThanFourMonthsAgo(data[0].timestamp))
     if(isMoreThanFourMonthsAgo(data[0].timestamp)){
       let toMember = new EmbedBuilder()
       .setTitle(":white_check_mark: | Feel free to post!")
-      .setAuthor({name: `${interaction.member.user.username}`, iconURL: `${interaction.member.user.displayAvatarURL()}`})
+      .setThumbnail(interaction.guild.iconURL())
+      .setAuthor({name: `${interaction.member.user.username}`, iconURL: `${interaction.member.displayAvatarURL()}`})
       .setDescription(
-        `> Dear ${interaction.member},\n\n> The last post you have created was more than **4 months ago**.Please, feel free to post again in the ${post_channel} channel! Good luck!`
+        `> Dear ${interaction.member},\n\n> The last post you have created was more than **4 months ago**. Please, feel free to post again in the ${post_channel} channel! Good luck!`
       )
       .setColor("Red")
       .setTimestamp();
     await interaction.reply({ephemeral:true, embeds: [toMember]})
     return
     }else{
-      let time = Math.floor(data[0].timestamp / 1000);
-      let date = `<t:${time}:F>`
+      let timeInMilliseconds = data[0].timestamp; // or Math.floor(data[0].timestamp / 1000) * 1000 if it’s in seconds
+let date = new Date(timeInMilliseconds);
+
+// Add 4 months
+date.setMonth(date.getMonth() + 4);
+
+// Get the new timestamp in milliseconds
+let newTimeInMilliseconds = date.getTime();
+console.log(newTimeInMilliseconds)
+console.log(data[0].timestamp)
+      let dater = `<t:${Math.round(newTimeInMilliseconds / 1000)}:F>`
       let toMember = new EmbedBuilder()
       .setTitle(":x: | You cannot post yet!")
-      .setAuthor({name: `${interaction.member.user.username}`, iconURL: `${interaction.member.user.displayAvatarURL()}`})
+      .setThumbnail(interaction.guild.iconURL())
+      .setAuthor({name: `${interaction.member.user.username}`, iconURL: `${interaction.member.displayAvatarURL()}`})
       .setDescription(
-        `> Dear ${interaction.member},\n\n> The last post you have created was less than **4 months ago**.You are able to post again at: ${date}.\n\n> All your posts before this date will automatically be removed.`
+        `> Dear ${interaction.member},\n\n> The last post you have created was less than **4 months ago**. You are able to post again at: ${dater}.\n\n> All your posts before this date will automatically be removed.`
       )
       .setColor("Red")
       .setTimestamp();
